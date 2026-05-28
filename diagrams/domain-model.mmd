@@ -1,0 +1,65 @@
+erDiagram
+    BIZ_OPTY ||--o{ PROJECT : funds
+    EMPLOYEE ||--o{ PROJECT : manages
+    EMPLOYEE ||--o{ PROJECT_MEMBER : assigned_as
+    PROJECT ||--o{ PROJECT_MEMBER : has_members
+    PROJECT ||--o{ TASK : contains
+    PROJECT ||--o{ TIME_ENTRY : receives_time
+    TASK ||--o{ TIME_ENTRY : logged_against
+    EMPLOYEE ||--o{ TIME_ENTRY : records
+    EMPLOYEE ||--o{ WEEKLY_TIMESHEET : submits
+    WEEKLY_TIMESHEET ||--o{ TIME_ENTRY : groups
+    REPORT_DEFINITION ||--o{ REPORT_COLUMN : selects
+    REPORT_DEFINITION ||--o{ REPORT_FILTER : filters
+    REPORT_DEFINITION ||--o{ REPORT_GROUPING : groups
+
+    BIZ_OPTY {
+        string Name
+        string ClientName
+        string DealStatus
+        decimal ContractAmount
+    }
+    PROJECT {
+        string ProjectCode
+        string Name
+        date StartDate
+        date EndDate
+        decimal Budget
+        string Status
+    }
+    EMPLOYEE {
+        string Name
+        string Email
+        decimal HourlyRate
+        string ApprovalStatus
+    }
+    TASK {
+        string Name
+        decimal EstimatedHours
+        int SortOrder
+        bool IsActive
+    }
+    PROJECT_MEMBER {
+        string Role
+        date StartDate
+        date EndDate
+        decimal AllocationPercent
+    }
+    TIME_ENTRY {
+        date EntryDate
+        decimal Hours
+        decimal HourlyRateSnapshot
+        decimal CostAmount
+        string Status
+    }
+    WEEKLY_TIMESHEET {
+        date WeekStartDate
+        decimal TotalHours
+        string Status
+        string RejectReason
+    }
+    REPORT_DEFINITION {
+        string Name
+        string ReportType
+        bool IsPublic
+    }

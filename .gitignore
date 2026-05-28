@@ -1,0 +1,11 @@
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Local/generated
+*.log
+.env
+node_modules/
+build/
+dist/

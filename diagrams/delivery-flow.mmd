@@ -1,0 +1,16 @@
+flowchart TD
+    A["Sanitized PSA PRD"] --> B["Phase Epic / Feature Task"]
+    B --> C["Offshore implementation"]
+    C --> D["Browser QA / UAT"]
+    D --> E["Jira QA finding comments"]
+    E --> F["Rework and recheck"]
+    F --> G["ODC Code Quality gate"]
+    G --> H["Confluence closure report"]
+    H --> I["Vendor comparison matrix"]
+    I --> J["Baseline decision"]
+    J --> K["Follow-up backlog"]
+
+    D --> L["Traceability matrix"]
+    E --> L
+    G --> L
+    L --> J
