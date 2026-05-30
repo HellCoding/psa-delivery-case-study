@@ -87,7 +87,7 @@ class TimesheetWorkflowIntegrationTest {
         bizOptyRepository.deleteAll();
         employeeRepository.deleteAll();
 
-        weekStart = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        weekStart = LocalDate.now().minusWeeks(1).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         entryDate = weekStart.plusDays(1);
 
         projectManager = employeeRepository.save(new Employee("PM", "pm@example.com", new BigDecimal("120.00")));
@@ -112,8 +112,8 @@ class TimesheetWorkflowIntegrationTest {
                 project,
                 consultant,
                 "Developer",
-                project.getStartDate(),
-                project.getEndDate(),
+                weekStart,
+                weekStart.plusDays(2),
                 new BigDecimal("100.00")
         ));
         task = projectTaskRepository.save(new ProjectTask(
@@ -207,6 +207,59 @@ class TimesheetWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.status").value("APPROVED"));
 
         assertThat(timeEntryRepository.findById(entryId).orElseThrow().getStatus()).isEqualTo(TimeEntryStatus.APPROVED);
+    }
+
+    @Test
+    void emptyTimesheetReviewRequiresReviewerToManageActiveAssignment() throws Exception {
+        Employee otherManager = employeeRepository.save(new Employee("Other PM", "other-pm@example.com", new BigDecimal("110.00")));
+        long timesheetId = submitTimesheet();
+
+        mockMvc.perform(post("/api/timesheets/{timesheetId}/approve", timesheetId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("reviewerId", otherManager.getId()))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Reviewer must be the project manager for an active assignment in the submitted week"));
+
+        mockMvc.perform(post("/api/timesheets/{timesheetId}/approve", timesheetId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("reviewerId", projectManager.getId()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"))
+                .andExpect(jsonPath("$.totalHours").value(0));
+    }
+
+    @Test
+    void rejectsTimeEntryOutsideMemberAssignmentPeriod() throws Exception {
+        LocalDate outsideAssignmentDate = weekStart.plusDays(4);
+
+        mockMvc.perform(post("/api/time-entries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "employeeId", consultant.getId(),
+                                "projectId", project.getId(),
+                                "taskId", task.getId(),
+                                "entryDate", outsideAssignmentDate,
+                                "hours", new BigDecimal("8.0")
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Employee is not assigned to the project on the entry date"));
+    }
+
+    @Test
+    void rejectsProjectMemberPeriodOutsideProjectPeriod() throws Exception {
+        Employee newConsultant = employeeRepository.save(new Employee("New Consultant", "new-consultant@example.com", new BigDecimal("90.00")));
+
+        mockMvc.perform(post("/api/projects/{projectId}/members", project.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "employeeId", newConsultant.getId(),
+                                "role", "Developer",
+                                "startDate", project.getStartDate().minusDays(1),
+                                "endDate", project.getStartDate().plusDays(1),
+                                "allocationPercent", new BigDecimal("100.00")
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Member assignment period must be within the project period"));
     }
 
     private long createTimeEntry(BigDecimal hours) throws Exception {

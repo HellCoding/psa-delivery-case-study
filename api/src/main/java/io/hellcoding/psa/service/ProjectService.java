@@ -106,6 +106,9 @@ public class ProjectService {
         if (request.endDate().isBefore(request.startDate())) {
             throw new DomainException("Member endDate must be on or after startDate");
         }
+        if (request.startDate().isBefore(project.getStartDate()) || request.endDate().isAfter(project.getEndDate())) {
+            throw new DomainException("Member assignment period must be within the project period");
+        }
         validateAllocation(request.allocationPercent());
         return projectMemberRepository.save(new ProjectMember(
                 project,

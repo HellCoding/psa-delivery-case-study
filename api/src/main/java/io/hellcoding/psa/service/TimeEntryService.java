@@ -61,7 +61,7 @@ public class TimeEntryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + request.taskId()));
 
         validateEmployee(employee);
-        validateProjectAssignment(employee, project);
+        validateProjectAssignment(employee, project, request.entryDate());
         validateTask(project, task);
         validateEntryDate(project, request.entryDate());
         validateHours(request.hours());
@@ -113,9 +113,9 @@ public class TimeEntryService {
         }
     }
 
-    private void validateProjectAssignment(Employee employee, Project project) {
-        if (!projectMemberRepository.existsByProjectIdAndEmployeeId(project.getId(), employee.getId())) {
-            throw new DomainException("Employee is not assigned to the project");
+    private void validateProjectAssignment(Employee employee, Project project, LocalDate entryDate) {
+        if (projectMemberRepository.countActiveAssignment(project.getId(), employee.getId(), entryDate) == 0) {
+            throw new DomainException("Employee is not assigned to the project on the entry date");
         }
     }
 

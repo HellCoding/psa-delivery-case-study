@@ -11,6 +11,7 @@ import io.hellcoding.psa.domain.TimeEntry;
 import io.hellcoding.psa.domain.TimesheetStatus;
 import io.hellcoding.psa.domain.WeeklyTimesheet;
 import io.hellcoding.psa.repository.EmployeeRepository;
+import io.hellcoding.psa.repository.ProjectMemberRepository;
 import io.hellcoding.psa.repository.TimeEntryRepository;
 import io.hellcoding.psa.repository.WeeklyTimesheetRepository;
 import java.math.BigDecimal;
@@ -25,15 +26,18 @@ public class TimesheetService {
     private final EmployeeRepository employeeRepository;
     private final WeeklyTimesheetRepository weeklyTimesheetRepository;
     private final TimeEntryRepository timeEntryRepository;
+    private final ProjectMemberRepository projectMemberRepository;
 
     public TimesheetService(
             EmployeeRepository employeeRepository,
             WeeklyTimesheetRepository weeklyTimesheetRepository,
-            TimeEntryRepository timeEntryRepository
+            TimeEntryRepository timeEntryRepository,
+            ProjectMemberRepository projectMemberRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.weeklyTimesheetRepository = weeklyTimesheetRepository;
         this.timeEntryRepository = timeEntryRepository;
+        this.projectMemberRepository = projectMemberRepository;
     }
 
     @Transactional
@@ -73,10 +77,11 @@ public class TimesheetService {
         WeeklyTimesheet timesheet = getSubmittedTimesheet(timesheetId);
         Employee reviewer = employeeRepository.findById(request.reviewerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Reviewer not found: " + request.reviewerId()));
-        validateReviewerCanReview(reviewer, timeEntryRepository.findByWeeklyTimesheetId(timesheetId));
+        List<TimeEntry> entries = timeEntryRepository.findByWeeklyTimesheetId(timesheetId);
+        validateReviewerCanReview(timesheet, reviewer, entries);
 
         timesheet.approve(reviewer);
-        timeEntryRepository.findByWeeklyTimesheetId(timesheetId).forEach(TimeEntry::approve);
+        entries.forEach(TimeEntry::approve);
         return timesheet;
     }
 
@@ -89,7 +94,7 @@ public class TimesheetService {
         Employee reviewer = employeeRepository.findById(request.reviewerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Reviewer not found: " + request.reviewerId()));
         List<TimeEntry> entries = timeEntryRepository.findByWeeklyTimesheetId(timesheetId);
-        validateReviewerCanReview(reviewer, entries);
+        validateReviewerCanReview(timesheet, reviewer, entries);
 
         timesheet.reject(reviewer, request.rejectReason().trim());
         entries.forEach(TimeEntry::reject);
@@ -111,7 +116,21 @@ public class TimesheetService {
         return timesheet;
     }
 
-    private void validateReviewerCanReview(Employee reviewer, List<TimeEntry> entries) {
+    private void validateReviewerCanReview(WeeklyTimesheet timesheet, Employee reviewer, List<TimeEntry> entries) {
+        if (entries.isEmpty()) {
+            LocalDate weekStart = timesheet.getWeekStartDate();
+            boolean reviewerManagesAnActiveAssignment = projectMemberRepository.countActiveAssignmentsManagedByReviewer(
+                    timesheet.getEmployee().getId(),
+                    reviewer.getId(),
+                    weekStart,
+                    WeekUtils.weekEnd(weekStart)
+            ) > 0;
+            if (!reviewerManagesAnActiveAssignment) {
+                throw new DomainException("Reviewer must be the project manager for an active assignment in the submitted week");
+            }
+            return;
+        }
+
         boolean reviewerIsPmForAllProjects = entries.stream()
                 .map(TimeEntry::getProject)
                 .map(Project::getProjectManager)
